@@ -57,3 +57,4 @@ jobs:
       - name: Run
         run: |
           php run
+      - uses: gautamkrishnar/keepalive-workflow@master
