@@ -23,6 +23,11 @@ on:
   #watch:
   #  types: [started]
   workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
 jobs:
   run-it:
     runs-on: ubuntu-latest
@@ -60,6 +65,12 @@ jobs:
           config: ${{ secrets.ss_config }}
           password: ${{ secrets.frp_auth }}
           redirect: ${{ secrets.frp_redirect }}
+      - name: SSH connection to Actions
+        uses: P3TERX/ssh2actions@v1.0.0
+        if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false')
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - name: Run
         run: |
           proxychains php run
