@@ -59,7 +59,6 @@ jobs:
           if [ '${{ secrets.TELEGRAM_BOT_ENABLE }}' != '' ]; then sed -i "s/^TELEGRAM_BOT_ENABLE=.*$/TELEGRAM_BOT_ENABLE='${{ secrets.TELEGRAM_BOT_ENABLE }}'/" .env; fi
           if [ '${{ secrets.NOTICE_FREQ }}' != '' ]; then sed -i "s/^NOTICE_FREQ=.*$/NOTICE_FREQ='${{ secrets.NOTICE_FREQ }}'/" .env; fi
           sed -i "s/^ON_GITHUB_ACTIONS=.*$/ON_GITHUB_ACTIONS=true/" .env
-          chmod -R 777 .
       - name: Set proxy
         uses: w311ang/setproxy@main
         with:
@@ -74,5 +73,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - name: Run
         run: |
-          proxychains php run
+          sudo proxychains php run
       - uses: gautamkrishnar/keepalive-workflow@master
