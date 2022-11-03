@@ -21,7 +21,7 @@ class FreeNom extends Base
 {
     const VERSION = 'v0.5.1';
 
-    const TIMEOUT = 33;
+    const TIMEOUT = 60;
 
     // FreeNom登录地址
     const LOGIN_URL = 'https://my.freenom.com/dologin.php';
