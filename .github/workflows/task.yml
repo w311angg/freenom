@@ -74,5 +74,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - name: Run
         run: |
-          sudo proxychains php run
+          sudo php run
       - uses: gautamkrishnar/keepalive-workflow@master
