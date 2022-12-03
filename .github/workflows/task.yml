@@ -73,6 +73,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - name: Run
-        run: |
-          sudo php run
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 2
+          retry_wait_seconds: 3600
+          command: |
+            output=$(sudo php run | tee /dev/tty)
+            if [[ $output == *"出错："* ]]; then exit 1; fi
       - uses: gautamkrishnar/keepalive-workflow@master
