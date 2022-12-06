@@ -80,6 +80,6 @@ jobs:
           retry_wait_seconds: 3600
           command: |
             echo -n > /tmp/freenom.log
-            output=$(sudo php run | tee /tmp/freenom.log)
+            sudo php run | tee /tmp/freenom.log
             if [[ $(cat /tmp/freenom.log) == *"出错："* ]]; then exit 1; fi
       - uses: gautamkrishnar/keepalive-workflow@master
