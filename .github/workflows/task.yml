@@ -76,7 +76,7 @@ jobs:
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 10
-          max_attempts: 1
+          max_attempts: 2
           retry_wait_seconds: 3600
           command: |
             echo -n > /tmp/freenom.log
