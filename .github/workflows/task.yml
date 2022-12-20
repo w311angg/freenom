@@ -78,6 +78,9 @@ jobs:
           timeout_minutes: 10
           max_attempts: 2
           retry_wait_seconds: 3600
+          on_retry_command: |
+            sudo systemctl restart shadowsocks-libev-local@client
+            sleep 5s
           command: |
             echo -n > /tmp/freenom.log
             sudo php run | tee /tmp/freenom.log
