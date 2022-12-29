@@ -19,7 +19,7 @@ on:
     branches:
       - master
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 1,2,3 * * *'
   #watch:
   #  types: [started]
   workflow_dispatch:
@@ -73,16 +73,13 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - name: Run
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 2
-          retry_wait_seconds: 3600
-          on_retry_command: |
-            sudo systemctl restart shadowsocks-libev-local@client
-            sleep 5s
-          command: |
-            echo -n > /tmp/freenom.log
-            sudo php run | tee /tmp/freenom.log
+        run: |
+          current_time=$(date +%s)
+          need_error_time_later=$(date -d "3:00" +%s)
+
+          echo -n > /tmp/freenom.log
+          sudo php run | tee /tmp/freenom.log
+          if [[ $current_time >= $need_error_time_later ]]; then
             if [[ $(cat /tmp/freenom.log) == *"出错："* ]]; then exit 1; fi
+          fi
       - uses: gautamkrishnar/keepalive-workflow@master
