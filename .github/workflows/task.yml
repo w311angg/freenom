@@ -91,6 +91,7 @@ jobs:
               if [[ ("${{ secrets.MAIL_ENABLE }}" == "1") && ("${{ secrets.NOTICE_FREQ }}" == "0") ]]; then
                 sed -i "s/^MAIL_ENABLE=.*$/MAIL_ENABLE='${{ secrets.MAIL_ENABLE }}'/" .env
                 phprun
+              fi
               exit 1
             fi
           fi
