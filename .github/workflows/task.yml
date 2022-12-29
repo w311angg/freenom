@@ -84,6 +84,7 @@ jobs:
 
           if [[ ("${{ secrets.MAIL_ENABLE }}" == "1") && ("${{ secrets.NOTICE_FREQ }}" == "0") ]]; then
             sed -i "s/^MAIL_ENABLE=.*$/MAIL_ENABLE='0'/" .env
+          fi
           phprun
           if [[ $current_time >= $need_error_time_later ]]; then
             if [[ $(cat /tmp/freenom.log) == *"出错："* ]]; then
