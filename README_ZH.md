@@ -399,6 +399,14 @@ systemctl enable docker
 docker run -d --name freenom --restart always -v $(pwd):/conf -v $(pwd)/logs:/app/logs luolongfei/freenom
 ```
 
+如果只想单次执行，且希望直接使用当前目录的 `cookies.txt` 登录态，可以把浏览器导出的 cookies JSON 粘贴到当前目录的 `cookies.txt`，然后执行：
+
+```shell
+docker run --rm -v $(pwd):/conf -v $(pwd)/logs:/app/logs luolongfei/freenom run-once
+```
+
+容器会自动读取 `/conf/cookies.txt`。如果 `cookies.txt` 为空，则不会启用 cookies 登录态，会继续走原来的 `.env` 账号密码配置。
+
 或者，如果你想自定义脚本执行时间，则命令如下
 
 ```shell

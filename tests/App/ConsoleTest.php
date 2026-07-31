@@ -166,6 +166,55 @@ HTML;
         $this->invokeMethod($freeNom, 'login', ['tester@example.com', 'secret']);
     }
 
+    public function testFreeNomBuildsCookieJarFromBrowserExport(): void
+    {
+        $freeNom = new TestableFreeNom();
+        $file = ROOT_PATH . DS . 'tests' . DS . 'runtime' . DS . 'freenom-cookies.json';
+
+        file_put_contents($file, json_encode([
+            [
+                'domain' => '.freenom.com',
+                'expirationDate' => 1820049717.540252,
+                'hostOnly' => false,
+                'httpOnly' => false,
+                'name' => '_ga',
+                'path' => '/',
+                'sameSite' => null,
+                'secure' => false,
+                'session' => false,
+                'storeId' => null,
+                'value' => 'GA1.2.1639818374.1785489238',
+            ],
+            [
+                'domain' => 'my.freenom.com',
+                'hostOnly' => true,
+                'httpOnly' => true,
+                'name' => 'WHMCSZH5eHTGhfvzP',
+                'path' => '/',
+                'sameSite' => null,
+                'secure' => true,
+                'session' => true,
+                'storeId' => null,
+                'value' => 'fn3ja9ju4urs4dfnr9ds6up9os',
+            ],
+        ], JSON_UNESCAPED_UNICODE));
+
+        $jar = $this->invokeMethod($freeNom, 'buildCookieJarFromFile', [$file]);
+
+        $this->assertInstanceOf(CookieJar::class, $jar);
+        $this->assertCount(2, $jar);
+
+        $sessionCookie = $jar->getCookieByName('WHMCSZH5eHTGhfvzP');
+        $this->assertSame('my.freenom.com', $sessionCookie->getDomain());
+        $this->assertSame('fn3ja9ju4urs4dfnr9ds6up9os', $sessionCookie->getValue());
+        $this->assertTrue($sessionCookie->getSecure());
+        $this->assertTrue($sessionCookie->getHttpOnly());
+
+        $gaCookie = $jar->getCookieByName('_ga');
+        $this->assertSame('.freenom.com', $gaCookie->getDomain());
+        $this->assertSame(1820049717, $gaCookie->getExpires());
+    }
+
     public function testFreeNomArrayUniqueAndRenewAllDomains(): void
     {
         $freeNom = new TestableFreeNom();

@@ -29,6 +29,9 @@ return [
         '34520019' => '<light_green>将自动使用新的 AWS WAF Token</light_green>',
         '34520020' => '未配置 OPEN_SOURCE_WAF_SOLVER_URL 环境变量',
         '34520021' => '等待开源接口返回 token 超过 %d 秒，依然未取得有效 token，本次无法继续执行',
+        '34520022' => 'cookies 文件不存在或路径无效：%s',
+        '34520023' => 'cookies 文件 JSON 解析失败：%s',
+        '34520024' => 'cookies 文件中未发现有效 cookie：%s',
     ],
     'messages' => [
         '100001' => '未能取得名为 WHMCSZH5eHTGhfvzP 的 cookie 值，故本次登录无效，请检查你的账户或密码是否正确。',
@@ -166,5 +169,7 @@ return [
         '100139' => '<light_green>已获取 aws waf token %s</light_green>',
         '100140' => '<light_green>本次无需 aws waf token</light_green>',
         '100141' => '检测到 405 人机验证，将于 9 秒后再次尝试获取 aws waf token',
+        '100142' => '<light_green>已从 cookies 文件加载 %d 个 cookie：%s</light_green>',
+        '100144' => '<light_green>已启用 cookies 文件登录态，跳过账号密码登录：%s</light_green>',
     ],
 ];

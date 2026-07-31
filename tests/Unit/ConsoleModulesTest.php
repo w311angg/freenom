@@ -74,7 +74,7 @@ HTML;
 
         self::assertCount(2, $domains);
         self::assertSame('alpha.tk', $domains[0]['domain']);
-        self::assertSame('10', $domains[0]['days']);
+        self::assertSame('0', $domains[0]['days']);
         self::assertSame('123', $domains[0]['id']);
         self::assertSame('token-123', $this->invokeMethod($freenom, 'getToken', [$page]));
     }

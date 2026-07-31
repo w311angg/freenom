@@ -29,6 +29,9 @@ return [
         '34520019' => '<light_green>Will automatically use the new AWS WAF Token</light_green>',
         '34520020' => 'The OPEN_SOURCE_WAF_SOLVER_URL environment variable is not configured',
         '34520021' => 'Waiting for the open source api to return the token for more than %d seconds, still unable to obtain a valid token, this time can not continue to execute',
+        '34520022' => 'The cookies file does not exist or the path is invalid: %s',
+        '34520023' => 'Failed to parse the cookies file JSON: %s',
+        '34520024' => 'No valid cookies were found in the cookies file: %s',
     ],
     'messages' => [
         '100001' => 'The cookie value named WHMCSZH5eHTGhfvzP could not be obtained, so this login is not valid, please check if your account or password is correct',
@@ -166,5 +169,7 @@ return [
         '100139' => '<light_green>AWS WAF token has been acquired %s</light_green>',
         '100140' => '<light_green>no need aws waf token</light_green>',
         '100141' => 'Detected 405 human verification, will attempt to retrieve AWS WAF token in 9 seconds',
+        '100142' => '<light_green>Loaded %d cookies from cookies file: %s</light_green>',
+        '100144' => '<light_green>Cookie session mode enabled; account/password login skipped: %s</light_green>',
     ],
 ];

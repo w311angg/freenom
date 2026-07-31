@@ -19,6 +19,29 @@ if [ ! -f /app/.env ]; then
     ln -s /conf/.env /app/.env || echo -e "[${yellow}Warn${plain}] 未能正常创建 .env 文件链接"
 fi
 
+# cookies 文件
+# 支持通过 `-v $(pwd):/conf` 把宿主机当前目录挂载进来后，自动读取 /conf/cookies.txt。
+# 这样用户只需要把浏览器导出的 cookies JSON 粘贴到当前目录 cookies.txt 即可。
+if [ ! -f /conf/cookies.txt ]; then
+    : > /conf/cookies.txt && echo -e "[${green}Info${plain}] 已生成空的 cookies.txt 文件，可将浏览器导出的 cookies JSON 粘贴到此文件" || echo -e "[${yellow}Warn${plain}] 未能正常生成 cookies.txt 文件"
+fi
+if [ ! -e /app/cookies.txt ] && [ -f /conf/cookies.txt ]; then
+    ln -s /conf/cookies.txt /app/cookies.txt || echo -e "[${yellow}Warn${plain}] 未能正常创建 cookies.txt 文件链接"
+fi
+
+# 单次执行模式
+# 用法：
+# docker run --rm -v $(pwd):/conf -v $(pwd)/logs:/app/logs luolongfei/freenom run-once
+if [ "${1:-}" = "run-once" ] || [ "${RUN_ONCE:-}" = "1" ]; then
+    if [ "${1:-}" = "run-once" ]; then
+        shift
+    fi
+
+    echo -e "[${green}Info${plain}] 单次执行模式启动"
+    php /app/run "$@"
+    exit $?
+fi
+
 # PHP 命令
 PHP_COMMAND='/usr/local/bin/php /app/run > /app/logs/freenom_cron.log 2>&1'
 

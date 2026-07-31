@@ -359,11 +359,12 @@ if (!function_exists('autoRetry')) {
      * @param $func
      * @param int $maxRetryCount
      * @param array $params
+     * @param bool $refreshAwsWafToken 405 时是否尝试刷新 aws-waf-token
      *
      * @return mixed|void
      * @throws Exception
      */
-    function autoRetry($func, $maxRetryCount = 3, $params = [])
+    function autoRetry($func, $maxRetryCount = 3, $params = [], $refreshAwsWafToken = true)
     {
         $retryCount = 0;
         while (true) {
@@ -378,6 +379,13 @@ if (!function_exists('autoRetry')) {
                 $sleepTime = getSleepTime($retryCount, 2, 10);
 
                 if (stripos($e->getMessage(), '405') !== false) {
+                    if (!$refreshAwsWafToken) {
+                        system_log(sprintf(lang('exception_msg.34520016'), $e->getMessage(), $sleepTime, $maxRetryCount, $retryCount, $maxRetryCount));
+                        sleep($sleepTime);
+
+                        continue;
+                    }
+
                     system_log(\lang('100141'));
 
                     sleep(9);

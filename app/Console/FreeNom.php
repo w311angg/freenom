@@ -37,7 +37,8 @@ class FreeNom extends Base
     const TOKEN_REGEX = '/name="token"\svalue="(?P<token>[^"]+)"/i';
 
     // 匹配域名信息的正则
-    const DOMAIN_INFO_REGEX = '/<tr><td>(?P<domain>[^<]+)<\/td><td>[^<]+<\/td><td>[^<]+<span class="[^"]+">(?P<days>\d+)[^&]+&domain=(?P<id>\d+)"/i';
+    // 只匹配域名和 renewdomain 的 domain id，不再依赖 “Days Until Expiry” 到期天数
+    const DOMAIN_INFO_REGEX = '/<tr\b[^>]*>\s*<td\b[^>]*>\s*(?P<domain>[^<]+?)\s*<\/td>(?:(?!<\/tr>).)*?(?:domains\.php\?a=renewdomain(?:&amp;|&)domain=|[?&](?:amp;)?domain=)(?P<id>\d+)(?:(?!<\/tr>).)*?<\/tr>/is';
 
     // 匹配登录状态的正则
     const LOGIN_STATUS_REGEX = '/<li.*?Logout.*?<\/li>/i';
@@ -66,6 +67,11 @@ class FreeNom extends Base
     protected $password;
 
     /**
+     * @var bool 是否使用 cookies 文件登录态
+     */
+    protected $cookieSessionMode = false;
+
+    /**
      * @var FreeNom
      */
     private static $instance;
@@ -74,6 +80,18 @@ class FreeNom extends Base
      * @var int 最大请求重试次数
      */
     public $maxRequestRetryCount;
+
+    /**
+     * 命令行 cookies 文件参数名
+     */
+    protected const DEFAULT_COOKIE_FILE = 'cookies.txt';
+
+    protected const COOKIE_FILE_ARG_NAMES = [
+        'cookies',
+        'cookie',
+        'cookies_file',
+        'cookie_file',
+    ];
 
     /**
      * @return FreeNom
@@ -152,6 +170,246 @@ class FreeNom extends Base
     }
 
     /**
+     * 获取命令行传入的 cookies 文件路径
+     *
+     * 支持：
+     * php run
+     * php run cookies.json
+     * php run --cookies=cookies.json
+     * php run --cookie=/path/to/cookies.json
+     *
+     * 不传路径时，默认尝试读取项目根目录的 cookies.txt。
+     * cookies.txt 为空时不启用 cookie 登录态，不影响原有账号密码登录。
+     * 相对路径统一按项目根目录解析。
+     *
+     * @return string
+     * @throws LlfException
+     */
+    protected function getCookieFilePath()
+    {
+        $path = '';
+
+        foreach (self::COOKIE_FILE_ARG_NAMES as $argName) {
+            $argValue = get_argv($argName, '');
+            if ($argValue !== '') {
+                $path = $argValue;
+
+                break;
+            }
+        }
+
+        if ($path === '') {
+            $path = $this->getPositionalCookieFilePath();
+        }
+
+        if ($path === '') {
+            $defaultCookieFilePath = ROOT_PATH . DS . self::DEFAULT_COOKIE_FILE;
+            if (!is_file($defaultCookieFilePath)) {
+                return '';
+            }
+
+            $contents = file_get_contents($defaultCookieFilePath);
+            if ($contents === false || trim($contents) === '') {
+                return '';
+            }
+
+            return $defaultCookieFilePath;
+        }
+
+        if (!is_string($path) || $path === '1') {
+            throw new LlfException(34520022, 'empty cookies path');
+        }
+
+        return $this->resolveCookieFilePath($path);
+    }
+
+    /**
+     * 获取第一个非选项形式的命令行参数作为 cookies 文件路径
+     *
+     * @return string
+     */
+    protected function getPositionalCookieFilePath()
+    {
+        if (!IS_CLI) {
+            return '';
+        }
+
+        global $argv;
+
+        if (!is_array($argv)) {
+            return '';
+        }
+
+        foreach (array_slice($argv, 1) as $arg) {
+            if (!is_string($arg) || $arg === '' || str_starts_with($arg, '-')) {
+                continue;
+            }
+
+            return $arg;
+        }
+
+        return '';
+    }
+
+    /**
+     * 解析 cookies 文件路径
+     *
+     * @param string $path
+     *
+     * @return string
+     */
+    protected function resolveCookieFilePath(string $path)
+    {
+        $path = trim($path);
+
+        if ($path !== '' && $path[0] === '~') {
+            $home = getenv('HOME');
+            if ($home) {
+                $path = $home . substr($path, 1);
+            }
+        }
+
+        if ($this->isAbsolutePath($path)) {
+            return $path;
+        }
+
+        return ROOT_PATH . DS . ltrim($path, '/\\');
+    }
+
+    /**
+     * 判断是否绝对路径
+     *
+     * @param string $path
+     *
+     * @return bool
+     */
+    protected function isAbsolutePath(string $path)
+    {
+        return $path !== ''
+            && (
+                $path[0] === '/'
+                || preg_match('/^[a-zA-Z]:[\/\\\\]/', $path)
+                || str_starts_with($path, '\\\\')
+            );
+    }
+
+    /**
+     * 从浏览器导出的 JSON cookies 文件构建 CookieJar
+     *
+     * @param string $filePath
+     *
+     * @return CookieJar
+     * @throws LlfException
+     */
+    protected function buildCookieJarFromFile(string $filePath)
+    {
+        if (!is_file($filePath)) {
+            throw new LlfException(34520022, $filePath);
+        }
+
+        $contents = file_get_contents($filePath);
+        if ($contents === false) {
+            throw new LlfException(34520023, $filePath);
+        }
+
+        $cookies = json_decode($contents, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($cookies)) {
+            throw new LlfException(34520023, json_last_error_msg());
+        }
+
+        if (isset($cookies['cookies']) && is_array($cookies['cookies'])) {
+            $cookies = $cookies['cookies'];
+        }
+
+        $jar = new CookieJar();
+
+        foreach ($cookies as $cookieItem) {
+            if (!is_array($cookieItem)) {
+                continue;
+            }
+
+            $cookie = $this->buildCookieFromBrowserExport($cookieItem);
+            if ($cookie instanceof SetCookie) {
+                $jar->setCookie($cookie);
+            }
+        }
+
+        if (count($jar) === 0) {
+            throw new LlfException(34520024, $filePath);
+        }
+
+        system_log(sprintf(lang('100142'), count($jar), $filePath));
+
+        return $jar;
+    }
+
+    /**
+     * 将浏览器 cookies 导出项转换为 Guzzle SetCookie
+     *
+     * @param array $cookieItem
+     *
+     * @return SetCookie|null
+     */
+    protected function buildCookieFromBrowserExport(array $cookieItem)
+    {
+        if (!isset($cookieItem['name']) || (string)$cookieItem['name'] === '') {
+            return null;
+        }
+
+        if (!array_key_exists('value', $cookieItem)) {
+            return null;
+        }
+
+        $domain = isset($cookieItem['domain']) ? (string)$cookieItem['domain'] : 'my.freenom.com';
+        if ($domain === '') {
+            $domain = 'my.freenom.com';
+        }
+
+        $cookie = [
+            'Name' => (string)$cookieItem['name'],
+            'Value' => (string)$cookieItem['value'],
+            'Domain' => $domain,
+            'Path' => isset($cookieItem['path']) && (string)$cookieItem['path'] !== '' ? (string)$cookieItem['path'] : '/',
+            'Secure' => !empty($cookieItem['secure']),
+            'HttpOnly' => !empty($cookieItem['httpOnly']),
+            'Discard' => !empty($cookieItem['session']),
+        ];
+
+        if (isset($cookieItem['expirationDate']) && !$cookie['Discard']) {
+            $expires = (float)$cookieItem['expirationDate'];
+            if ($expires > 9999999999) {
+                $expires = $expires / 1000;
+            }
+
+            if ($expires > 0) {
+                $cookie['Expires'] = (int)floor($expires);
+            }
+        }
+
+        return new SetCookie($cookie);
+    }
+
+    /**
+     * 请求前补充 AWS WAF token
+     *
+     * 仅账号密码登录模式使用；cookies 模式不处理 aws-waf-token。
+     *
+     * @return void
+     * @throws LlfException
+     */
+    protected function prepareAwsWafToken()
+    {
+        if (needAwsWafToken()) {
+            $awsWafToken = getAwsWafToken();
+            $this->jar->setCookie(buildAwsWafCookie($awsWafToken));
+
+            return;
+        }
+
+        system_log(lang('100140'));
+    }
+
+    /**
      * 匹配获取所有域名
      *
      * @param string $domainStatusPage
@@ -169,6 +427,13 @@ class FreeNom extends Base
         if (!preg_match_all(self::DOMAIN_INFO_REGEX, $domainStatusPage, $allDomains, PREG_SET_ORDER)) {
             throw new LlfException(34520003);
         }
+
+        foreach ($allDomains as &$domainInfo) {
+            $domainInfo['domain'] = html_entity_decode(trim($domainInfo['domain']), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $domainInfo['id'] = trim($domainInfo['id']);
+            $domainInfo['days'] = '0'; // 新页面可能不再返回到期天数，续期逻辑不再依赖此字段
+        }
+        unset($domainInfo);
 
         return $allDomains;
     }
@@ -208,7 +473,7 @@ class FreeNom extends Base
                     ],
                     'cookies' => $jar
                 ]);
-            }, $this->maxRequestRetryCount, [&$this->jar]);
+            }, $this->maxRequestRetryCount, [&$this->jar], !$this->cookieSessionMode);
 
             $page = (string)$resp->getBody();
         } catch (\Exception $e) {
@@ -238,25 +503,23 @@ class FreeNom extends Base
 
         foreach ($allDomains as $d) {
             $domain = $d['domain'];
-            $days = (int)$d['days'];
+            $days = isset($d['days']) ? (int)$d['days'] : 0;
             $id = $d['id'];
 
-            // 免费域名只允许在到期前 14 天内续期
-            if ($days <= 14) {
-                $renewalResult = $this->renew($id, $token);
+            // 忽略到期天数，匹配到续期页中的域名后直接尝试续期
+            $renewalResult = $this->renew($id, $token);
 
-                sleep(1);
+            sleep(1);
 
-                if ($renewalResult) {
-                    $renewalSuccessArr[] = $domain;
+            if ($renewalResult) {
+                $renewalSuccessArr[] = $domain;
 
-                    continue; // 续期成功的域名无需记录过期天数
-                } else {
-                    $renewalFailuresArr[] = $domain;
-                }
+                continue; // 续期成功的域名无需记录过期天数
+            } else {
+                $renewalFailuresArr[] = $domain;
             }
 
-            // 记录域名过期天数
+            // 记录续期失败域名，兼容通知模板中仍然需要 domainStatusArr 的情况
             $domainStatusArr[$domain] = $days;
         }
 
@@ -323,7 +586,7 @@ class FreeNom extends Base
                     ],
                     'cookies' => $jar
                 ]);
-            }, $this->maxRequestRetryCount, [$token, $id, &$this->jar]);
+            }, $this->maxRequestRetryCount, [$token, $id, &$this->jar], !$this->cookieSessionMode);
 
             $resp = (string)$resp->getBody();
 
@@ -435,7 +698,18 @@ class FreeNom extends Base
      */
     public function handle()
     {
-        $accounts = $this->getAccounts();
+        $cookieFilePath = $this->getCookieFilePath();
+        if ($cookieFilePath !== '') {
+            $accounts = [
+                [
+                    'username' => env('FREENOM_USERNAME') ?: sprintf('cookies:%s', basename($cookieFilePath)),
+                    'password' => '',
+                    'cookie_file' => $cookieFilePath,
+                ],
+            ];
+        } else {
+            $accounts = $this->getAccounts();
+        }
         $totalAccounts = count($accounts);
 
         system_log(sprintf(lang('100049'), $totalAccounts));
@@ -448,16 +722,19 @@ class FreeNom extends Base
                 $num = $index + 1;
                 system_log(sprintf(lang('100050'), get_local_num($num), $this->username, $num, $totalAccounts));
 
-                $this->jar = new CookieJar(); // 所有请求共用一个 CookieJar 实例
-
-                if (needAwsWafToken()) {
-                    $awsWafToken = getAwsWafToken();
-                    $this->jar->setCookie(buildAwsWafCookie($awsWafToken));
+                $usingCookieFile = isset($account['cookie_file']) && $account['cookie_file'] !== '';
+                $this->cookieSessionMode = $usingCookieFile;
+                if (isset($account['cookie_file']) && $account['cookie_file'] !== '') {
+                    $this->jar = $this->buildCookieJarFromFile($account['cookie_file']); // 所有请求共用一个 CookieJar 实例
+                    system_log(sprintf(lang('100144'), $account['cookie_file']));
                 } else {
-                    system_log(lang('100140'));
+                    $this->jar = new CookieJar(); // 所有请求共用一个 CookieJar 实例
                 }
 
-                $this->login($this->username, $this->password);
+                if (!$usingCookieFile) {
+                    $this->prepareAwsWafToken();
+                    $this->login($this->username, $this->password);
+                }
 
                 $domainStatusPage = $this->getDomainStatusPage();
                 $allDomains = $this->getAllDomains($domainStatusPage);

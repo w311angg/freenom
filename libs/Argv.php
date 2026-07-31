@@ -26,10 +26,12 @@ Description
 Params:
 -c: <string> 指定要实例化的类名。默认调用 FreeNom 类 Specifies the name of the class to instantiate. The default call to the FreeNom class
 -m: <string> 指定要调用的方法名（不支持静态方法）。默认调用 handle 方法 Specifies the name of the method to be called (static methods are not supported). The handle method is called by default
+--cookies: <string> 指定浏览器导出的 cookies JSON 文件路径。相对路径按项目根目录解析。也可以直接将 cookies 粘贴到项目根目录 cookies.txt 中 Specify the browser-exported cookies JSON file path. Relative paths are resolved from the project root. You can also paste cookies into cookies.txt in the project root
 -h: 显示说明 Help
 
 Example: 
 $ php run -c=FreeNom -m=handle
+$ php run --cookies=cookies.txt
 
 FLL;
             echo $desc;

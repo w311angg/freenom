@@ -372,6 +372,14 @@ Basic command:
 docker run -d --name freenom --restart always -v $(pwd):/conf -v $(pwd)/logs:/app/logs luolongfei/freenom
 ```
 
+If you only want to run the renewal script once and use the `cookies.txt` session from the current directory, paste your browser-exported cookies JSON into `cookies.txt`, then run:
+
+```shell
+docker run --rm -v $(pwd):/conf -v $(pwd)/logs:/app/logs luolongfei/freenom run-once
+```
+
+The container automatically reads `/conf/cookies.txt`. If `cookies.txt` is empty, cookie-session mode is not enabled and the script falls back to the original `.env` account/password configuration.
+
 If you want to set a custom run time:
 
 ```shell
