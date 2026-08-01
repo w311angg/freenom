@@ -74,9 +74,50 @@ HTML;
 
         self::assertCount(2, $domains);
         self::assertSame('alpha.tk', $domains[0]['domain']);
-        self::assertSame('0', $domains[0]['days']);
+        self::assertSame('10', $domains[0]['days']);
         self::assertSame('123', $domains[0]['id']);
         self::assertSame('token-123', $this->invokeMethod($freenom, 'getToken', [$page]));
+    }
+
+    public function testFreeNomParsesLatestDomainIdMapAndRenewalRows(): void
+    {
+        $freenom = $this->newInstanceWithoutConstructor(FreeNom::class);
+        $this->setProperty($freenom, 'username', 'demo@example.com');
+
+        $domainListPage = <<<'HTML'
+<html>
+<body>
+<li>Logout</li>
+<table>
+    <tr><td>xddg.gq</td><td><a href="clientarea.php?action=domaindetails&id=1132358463#tabAutorenew">Manage Domain</a></td></tr>
+    <tr><td>xddg.tk</td><td><a href="/clientarea.php?action=domaindetails&id=1132358464">Manage Domain</a></td></tr>
+</table>
+</body>
+</html>
+HTML;
+
+        $renewalPage = <<<'HTML'
+<html>
+<body>
+<li>Logout</li>
+<input type="hidden" name="token" value="token-456" />
+<table>
+    <tr><td>xddg.gq</td><td>Active</td><td><span class="textgreen">13 Days</span></td><td></td></tr>
+    <tr><td>xddg.tk</td><td>Active</td><td><span class="textgreen">8401 Days</span></td><td></td></tr>
+</table>
+</body>
+</html>
+HTML;
+
+        $domainIdMap = $this->invokeMethod($freenom, 'getDomainIdMap', [$domainListPage]);
+        $domains = $this->invokeMethod($freenom, 'getAllDomains', [$renewalPage, $domainIdMap]);
+
+        self::assertSame(['xddg.gq' => '1132358463', 'xddg.tk' => '1132358464'], $domainIdMap);
+        self::assertSame('xddg.gq', $domains[0]['domain']);
+        self::assertSame('13', $domains[0]['days']);
+        self::assertSame('1132358463', $domains[0]['id']);
+        self::assertSame('8401', $domains[1]['days']);
+        self::assertSame('token-456', $this->invokeMethod($freenom, 'getToken', [$renewalPage]));
     }
 
     public function testFreeNomArrayUniqueKeepsDistinctCredentialPairs(): void

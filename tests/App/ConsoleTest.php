@@ -3,7 +3,12 @@ declare(strict_types=1);
 
 namespace Luolongfei\Tests\App;
 
+use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Luolongfei\App\Console\Base;
 use Luolongfei\App\Console\Cron;
 use Luolongfei\App\Console\FreeNom;
@@ -16,6 +21,7 @@ use Luolongfei\Tests\TestCase;
 class TestableFreeNom extends FreeNom
 {
     public array $renewResults = [];
+    public array $renewedIds = [];
 
     public function __construct()
     {
@@ -23,7 +29,26 @@ class TestableFreeNom extends FreeNom
 
     protected function renew(int $id, string $token)
     {
+        $this->renewedIds[] = $id;
+
         return $this->renewResults[$id] ?? false;
+    }
+
+    protected function renewDomainsConcurrently(array $renewalDomains, string $token)
+    {
+        $results = [];
+        foreach ($renewalDomains as $domainInfo) {
+            $id = (int)$domainInfo['id'];
+            $this->renewedIds[] = $id;
+            $results[] = [
+                'domain' => $domainInfo['domain'],
+                'days' => (int)$domainInfo['days'],
+                'id' => $id,
+                'success' => $this->renewResults[$id] ?? false,
+            ];
+        }
+
+        return $results;
     }
 }
 
@@ -215,6 +240,47 @@ HTML;
         $this->assertSame(1820049717, $gaCookie->getExpires());
     }
 
+    public function testFreeNomConcurrentRenewalCollectsResultsAndRetries(): void
+    {
+        $freeNom = new class extends FreeNom {
+            public function __construct()
+            {
+            }
+        };
+
+        $history = [];
+        $mock = new MockHandler([
+            new Response(200, [], 'Order Confirmation'),
+            new Response(200, [], 'not confirmed'),
+            new Response(500, [], 'server error'),
+            new Response(200, [], 'Order Confirmation'),
+        ]);
+        $stack = HandlerStack::create($mock);
+        $stack->push(Middleware::history($history));
+
+        $this->setProperty($freeNom, 'client', new Client(['handler' => $stack]));
+        $this->setProperty($freeNom, 'jar', new CookieJar());
+        $this->setProperty($freeNom, 'username', 'tester@example.com');
+        $this->setProperty($freeNom, 'maxRequestRetryCount', 1);
+
+        $results = $this->invokeMethod($freeNom, 'renewDomainsConcurrently', [[
+            ['domain' => 'alpha.tk', 'days' => 5, 'id' => 1],
+            ['domain' => 'beta.ml', 'days' => 5, 'id' => 2],
+            ['domain' => 'gamma.ga', 'days' => 5, 'id' => 3],
+        ], 'token-123']);
+
+        $this->assertCount(3, $results);
+        $this->assertTrue($results[0]['success']);
+        $this->assertFalse($results[1]['success']);
+        $this->assertTrue($results[2]['success']);
+        $this->assertCount(4, $history); // 第三个域名 500 后重试一次
+        $this->assertSame('POST', $history[0]['request']->getMethod());
+        $this->assertSame('/domains.php?submitrenewals=true', $history[0]['request']->getUri()->getPath() . '?' . $history[0]['request']->getUri()->getQuery());
+        parse_str((string)$history[0]['request']->getBody(), $firstBody);
+        $this->assertSame('token-123', $firstBody['token']);
+        $this->assertSame('12M', $firstBody['renewalperiod'][1]);
+    }
+
     public function testFreeNomArrayUniqueAndRenewAllDomains(): void
     {
         $freeNom = new TestableFreeNom();
@@ -237,5 +303,6 @@ HTML;
         ];
 
         $this->assertTrue($freeNom->renewAllDomains($domains, 'token'));
+        $this->assertSame([1, 2], $freeNom->renewedIds);
     }
 }
